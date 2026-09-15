@@ -38,24 +38,11 @@ namespace StreamCompaction {
           }
         }
 
-        /**
-         * Performs prefix-sum (aka scan) on idata, storing the result into odata.
-         */
-        void scan(int n, int *odata, const int *idata) {
-          // TODO
+        void deviceScan(int n, int* dev_data) {
           int upRoundedN = 1 << ilog2ceil(n);
-
-          // device array
-          int *dev_data;
-
-          cudaMalloc((void**)&dev_data, upRoundedN * sizeof(int));
-          cudaMemset(dev_data, 0, upRoundedN * sizeof(int));
-          cudaMemcpy(dev_data, idata, n * sizeof(int), cudaMemcpyHostToDevice);
 
           int blockSize = 128;
           int blocksPerGrid = (upRoundedN + blockSize - 1) / blockSize;
-
-          timer().startGpuTimer();
 
           // upsweep
           for (int d = 0; d < ilog2ceil(n); d++) {
@@ -69,12 +56,28 @@ namespace StreamCompaction {
             int offset = 1 << (d + 1);
             kernDownsweep<<<blocksPerGrid, blockSize>>>(upRoundedN, offset, dev_data);
           }
+        }
 
+        /**
+         * Performs prefix-sum (aka scan) on idata, storing the result into odata.
+         */
+        void scan(int n, int *odata, const int *idata) {
+          // TODO
+          // device array
+          int *dev_data;
+          int upRoundedN = 1 << ilog2ceil(n);
+
+          cudaMalloc((void**)&dev_data, upRoundedN * sizeof(int));
+          cudaMemset(dev_data, 0, upRoundedN * sizeof(int));
+          cudaMemcpy(dev_data, idata, n * sizeof(int), cudaMemcpyDeviceToDevice);
+
+          timer().startGpuTimer();
+          deviceScan(n, dev_data);
           timer().endGpuTimer();
 
           cudaMemcpy(odata, dev_data, n * sizeof(int), cudaMemcpyDeviceToHost);
 
-          // free device arrays
+          // free device array
           cudaFree(dev_data);
         }
 
@@ -88,11 +91,48 @@ namespace StreamCompaction {
          * @returns      The number of elements remaining after compaction.
          */
         int compact(int n, int *odata, const int *idata) {
-            timer().startGpuTimer();
-            // TODO
+          // TODO
+          // device arrays
+          int *dev_idata, *dev_odata, *dev_indices, *dev_bools;
+          int upRoundedN = 1 << ilog2ceil(n);
 
-            timer().endGpuTimer();
-            return -1;
+          cudaMalloc((void**)&dev_idata, n * sizeof(int));
+          cudaMalloc((void**)&dev_odata, n * sizeof(int));
+
+          cudaMalloc((void**)&dev_indices, upRoundedN * sizeof(int));
+          cudaMalloc((void**)&dev_bools, upRoundedN * sizeof(int));
+
+          cudaMemset(dev_bools, 0, upRoundedN * sizeof(int));
+          cudaMemcpy(dev_idata, idata, n * sizeof(int), cudaMemcpyHostToDevice);
+
+          int blockSize = 128;
+          int blocksPerGrid = (n + blockSize - 1) / blockSize;
+
+          timer().startGpuTimer();
+
+          StreamCompaction::Common::kernMapToBoolean<<<blocksPerGrid, blockSize>>>(n, dev_bools, dev_idata);
+
+          cudaMemcpy(dev_indices, dev_bools, upRoundedN * sizeof(int), cudaMemcpyDeviceToDevice);
+          deviceScan(upRoundedN, dev_indices);
+
+          StreamCompaction::Common::kernScatter<<<blocksPerGrid, blockSize>>>(n, dev_odata, dev_idata, dev_bools, dev_indices);
+
+          timer().endGpuTimer();
+
+          cudaMemcpy(odata, dev_odata, n * sizeof(int), cudaMemcpyDeviceToHost);
+          
+          int scanElems, lastElem;
+          cudaMemcpy(&scanElems, &dev_indices[n - 1], sizeof(int), cudaMemcpyDeviceToHost);
+          
+          cudaMemcpy(&lastElem, &dev_bools[n - 1], sizeof(int), cudaMemcpyDeviceToHost);
+
+          // free device arrays
+          cudaFree(dev_idata);
+          cudaFree(dev_odata);
+          cudaFree(dev_bools);
+          cudaFree(dev_indices);
+
+          return scanElems + lastElem;
         }
     }
 }

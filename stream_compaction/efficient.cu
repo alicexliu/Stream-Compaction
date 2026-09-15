@@ -69,7 +69,7 @@ namespace StreamCompaction {
 
           cudaMalloc((void**)&dev_data, upRoundedN * sizeof(int));
           cudaMemset(dev_data, 0, upRoundedN * sizeof(int));
-          cudaMemcpy(dev_data, idata, n * sizeof(int), cudaMemcpyDeviceToDevice);
+          cudaMemcpy(dev_data, idata, n * sizeof(int), cudaMemcpyHostToDevice);
 
           timer().startGpuTimer();
           deviceScan(n, dev_data);
@@ -122,9 +122,9 @@ namespace StreamCompaction {
           cudaMemcpy(odata, dev_odata, n * sizeof(int), cudaMemcpyDeviceToHost);
           
           int scanElems, lastElem;
-          cudaMemcpy(&scanElems, &dev_indices[n - 1], sizeof(int), cudaMemcpyDeviceToHost);
+          cudaMemcpy(&scanElems, dev_indices + n - 1, sizeof(int), cudaMemcpyDeviceToHost);
           
-          cudaMemcpy(&lastElem, &dev_bools[n - 1], sizeof(int), cudaMemcpyDeviceToHost);
+          cudaMemcpy(&lastElem, dev_bools + n - 1, sizeof(int), cudaMemcpyDeviceToHost);
 
           // free device arrays
           cudaFree(dev_idata);

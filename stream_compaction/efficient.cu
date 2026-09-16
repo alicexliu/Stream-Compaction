@@ -12,49 +12,59 @@ namespace StreamCompaction {
             return timer;
         }
 
-        __global__ void kernUpsweep(int n, int offset, int* data) {
+        __global__ void kernUpsweep(int n, int offset, int stride, int* data) {
           unsigned idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-          if (idx >= n) {
+          if (idx >= n / stride) {
             return;
           }
-          
-          if (idx % offset == 0) {
-            data[idx + offset - 1] += data[idx + (offset / 2) - 1];
-          }
+
+          int right_idx = (idx + 1) * stride - 1;
+          int left_idx = right_idx - offset;
+          data[right_idx] += data[left_idx];
         }
 
-        __global__ void kernDownsweep(int n, int offset, int* data) {
+        __global__ void kernDownsweep(int n, int offset, int stride, int* data) {
           unsigned idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-          if (idx >= n) {
+          if (idx >= n / stride) {
             return;
           }
 
-          if (idx % offset == 0) {
-            int temp = data[idx + (offset / 2) - 1];
-            data[idx + (offset / 2) - 1] = data[idx + offset - 1];
-            data[idx + offset - 1] += temp;
-          }
+          int right_idx = (idx + 1) * stride - 1;
+          int left_idx = right_idx - offset;
+          
+          int temp = data[left_idx];
+          data[left_idx] = data[right_idx];
+          data[right_idx] += temp;
         }
 
         void deviceScan(int n, int* dev_data) {
           int upRoundedN = 1 << ilog2ceil(n);
 
           int blockSize = 128;
-          int blocksPerGrid = (upRoundedN + blockSize - 1) / blockSize;
 
           // upsweep
           for (int d = 0; d < ilog2ceil(n); d++) {
-            int offset = 1 << (d + 1);
-            kernUpsweep<<<blocksPerGrid, blockSize>>>(upRoundedN, offset, dev_data);
+            int offset = 1 << d;     
+            int stride = 1 << (d + 1);
+
+            int activeThreads = upRoundedN / stride;
+            int blocksPerGrid = (activeThreads + blockSize - 1) / blockSize;
+
+            kernUpsweep<<<blocksPerGrid, blockSize>>>(upRoundedN, offset, stride, dev_data);
           }
 
           // downsweep
           cudaMemset(&dev_data[upRoundedN - 1], 0, sizeof(int));
           for (int d = ilog2ceil(n) - 1; d >= 0; d--) {
-            int offset = 1 << (d + 1);
-            kernDownsweep<<<blocksPerGrid, blockSize>>>(upRoundedN, offset, dev_data);
+            int offset = 1 << d;
+            int stride = 1 << (d + 1);
+
+            int activeThreads = upRoundedN / stride;
+            int blocksPerGrid = (activeThreads + blockSize - 1) / blockSize;
+
+            kernDownsweep<<<blocksPerGrid, blockSize>>>(upRoundedN, offset, stride, dev_data);
           }
         }
 

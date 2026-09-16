@@ -49,8 +49,7 @@ namespace StreamCompaction {
             int offset = 1 << d;     
             int stride = 1 << (d + 1);
 
-            int activeThreads = upRoundedN / stride;
-            int blocksPerGrid = (activeThreads + blockSize - 1) / blockSize;
+            int blocksPerGrid = (upRoundedN / stride + blockSize - 1) / blockSize;
 
             kernUpsweep<<<blocksPerGrid, blockSize>>>(upRoundedN, offset, stride, dev_data);
           }
@@ -61,8 +60,7 @@ namespace StreamCompaction {
             int offset = 1 << d;
             int stride = 1 << (d + 1);
 
-            int activeThreads = upRoundedN / stride;
-            int blocksPerGrid = (activeThreads + blockSize - 1) / blockSize;
+            int blocksPerGrid = (upRoundedN / stride + blockSize - 1) / blockSize;
 
             kernDownsweep<<<blocksPerGrid, blockSize>>>(upRoundedN, offset, stride, dev_data);
           }

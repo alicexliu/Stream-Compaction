@@ -9,25 +9,56 @@ CUDA Stream Compaction
 
 ## Overview
 
-In this project, I implemented prefix sums scan and stream compaction on the CPU and GPU. The stream compaction implemented removes 0s from an array of integers. 
+In this project, I implemented multiple iterations of prefix sums scan and stream compaction on the CPU and GPU. The stream compaction implementation removes 0s from an array of integers. 
 
-### Scan
-CPU Implementation
+I also optimized the efficient GPU scan to launch only the required number of blocks at each level. This involved making the number of blocks launched at each loop dynamic, and changing indices to match.
 
-Naive GPU Implementation
-
-Work-Efficient GPU Implementation
-
-### Stream Compaction
-CPU Implementation
-
-Work-Efficient GPU Implementation
+The project includes the following features:
+* CPU Scan and Stream Compaction
+* Naive GPU Scan
+* Work-Efficient GPU Scan and Stream Compaction (Optimized)
+* Thrust Scan
 
 ## Performance Analysis
 
+### Block Size
+
+<p align="center">
+  <img src="img/block_size_graph.png" width="600"><br>
+</p>
+
+While a block size of 128 yielded the lowest runtime in milliseconds, the overall performance difference across block sizes was quite small. I tested on arrays of size 2<sup>8</sup> (256).
+
+### Implementation Comparison on Array Size
+
+<p align="center">
+  <img src="img/array_size_graph.png" width="600"><br>
+</p>
+
+From the data, we can see that for arrays of size less than 2<sup>20</sup>, the CPU implementation consistently performed better than all the other implementations, likely because the overhead cost of the GPU implementations were greater than the parallelization gains. For the smaller array sizes, the CPU implementation was followed overall by Naive, Thrust, then Work-Efficient. 
+
+The Thrust implementation performed the best as the array size grew larger, followed by Work-Efficient, CPU, then Naive. The Thrust implementation was likely able to perform this well due to the fact that it looks like it is launching significantly less kernels compared to my GPU implementations (see below). This likely reduces a lot of the overhead. 
+
+<p align="center">
+  <img src="img/nsight_systems_2.png" width="600"><br>
+  Thrust Implementation Nsight Systems Timeline
+</p>
+
+<p align="center">
+  <img src="img/nsight_systems_we.png" width="600"><br>
+  Work-Efficient GPU Implementation Nsight Systems Timeline
+</p>
+
+<p align="center">
+  <img src="img/nsight_systems_naive.png" width="600"><br>
+  Naive GPU Implementation Nsight Systems Timeline
+</p>
+
+
+The performance bottlenecks were different for each implementation. For the CPU implementation, it was limited by the lack of parallelization, especially when the array size grew, as the algorithm was simply O(n) loop. For the Naive GPU implementation, it was the number of computations and memory bandwith. The algorithm performs O(nlogn) additions and requires a global memory read/write for each. For the Work-Efficient GPU implementation, it was the kernel launching overhead. While it reduces the math to O(n), it requires launching 2 * log2(n) kernels. 
+
 ### Test Program Output (128 block size, 2<sup>8</sup> array size)
 ```
-
 ****************
 ** SCAN TESTS **
 ****************

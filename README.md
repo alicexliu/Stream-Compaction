@@ -40,17 +40,17 @@ From the data, we can see that for arrays of size less than 2<sup>20</sup>, the 
 The Thrust implementation performed the best as the array size grew larger, followed by Work-Efficient, CPU, then Naive. The Thrust implementation was likely able to perform this well due to the fact that it looks like it is launching significantly less kernels compared to my GPU implementations (see below). This likely reduces a lot of the overhead. 
 
 <p align="center">
-  <img src="img/nsight_systems_2.png" width="600"><br>
+  <img src="img/nsight_systems_2.png" width="1000"><br>
   Thrust Implementation Nsight Systems Timeline
 </p>
 
 <p align="center">
-  <img src="img/nsight_systems_we.png" width="600"><br>
+  <img src="img/nsight_systems_we.png" width="1000"><br>
   Work-Efficient GPU Implementation Nsight Systems Timeline
 </p>
 
 <p align="center">
-  <img src="img/nsight_systems_naive.png" width="600"><br>
+  <img src="img/nsight_systems_naive.png" width="1000"><br>
   Naive GPU Implementation Nsight Systems Timeline
 </p>
 
